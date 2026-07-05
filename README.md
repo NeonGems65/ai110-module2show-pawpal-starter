@@ -57,19 +57,54 @@ Daily plan:
 
 ## 🧪 Testing PawPal+
 
+Run the full test suite from the project root:
+
 ```bash
-# Run the full test suite:
-pytest
-
-# Run with coverage:
-pytest --cov
+python -m pytest
 ```
 
-Sample test output:
+The suite in [`test_pawpal_system.py`](test_pawpal_system.py) contains 34 tests
+covering every scheduling behavior the app relies on:
+
+- **Task lifecycle** — `mark_complete()` flips status, `is_overdue()` respects
+  due time and completion, and recurring tasks report the right cadence.
+- **Recurrence logic** — completing a `daily`/`weekly` task spawns a fresh,
+  pending occurrence one day/week later with a distinct id.
+- **Pet & Owner management** — adding tasks, toggling completion, creating pets,
+  and `Owner.filter_tasks()` filtering by completion status and (case-insensitive)
+  pet name, including the combined-filter and unknown-pet cases.
+- **Sorting** — priority-first ordering with a due-time tiebreak, and
+  chronological ordering via `sort_by_time()`.
+- **Filtering & placement** — dropping tasks that fit no window or are already
+  done, and greedily packing tasks into non-overlapping slots without exceeding
+  the window.
+- **Conflict detection** — flagging overlapping/duplicate-time tasks (same pet
+  and across different pets) while ignoring completed and non-overlapping tasks.
+- **End-to-end planning** — `generate_plan()` orders by priority with no overlap,
+  and `explain_plan()` describes the chosen tasks (and the empty-plan case).
+
+Test output from a successful run:
 
 ```
-# Paste your pytest output here
+============================= test session starts =============================
+platform win32 -- Python 3.13.7, pytest-9.1.1, pluggy-1.6.0
+rootdir: C:\Users\Ishaa\OneDrive\Documents\GitHub\ai110-module2show-pawpal-starter
+plugins: anyio-4.9.0, dash-3.1.1
+collected 34 items
+
+test_pawpal_system.py ..................................                 [100%]
+
+============================= 34 passed in 0.10s ==============================
 ```
+
+### Confidence Level: ⭐⭐⭐⭐☆ (4/5)
+
+All 34 tests pass, covering the core scheduling logic — sorting, filtering,
+conflict detection, recurrence, and end-to-end plan generation — including edge
+cases like completed tasks, unknown pets, and tasks that fit no window. I'm
+holding back the fifth star because the tests exercise the backend logic
+directly; the Streamlit UI layer in `app.py` is not yet covered by automated
+tests, so UI wiring is verified manually.
 
 ## 📐 Smarter Scheduling
 

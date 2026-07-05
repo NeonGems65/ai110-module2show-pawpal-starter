@@ -303,3 +303,51 @@ def test_detect_conflicts_ignores_completed_tasks():
     done.mark_complete()
 
     assert Scheduler().detect_conflicts(owner) == []
+
+
+# --- Requested coverage ----------------------------------------------------
+# Focused tests for the three behaviours called out explicitly:
+#   1. Sorting correctness  -> chronological order via sort_by_time
+#   2. Recurrence logic      -> completing a daily task creates tomorrow's task
+#   3. Conflict detection    -> duplicate times are flagged
+
+
+def test_sort_by_time_returns_chronological_order():
+    """Sorting Correctness: tasks are returned in chronological order."""
+    late = make_task("late", due=DAY + timedelta(hours=5))
+    early = make_task("early", due=DAY)
+    mid = make_task("mid", due=DAY + timedelta(hours=2))
+
+    # Pass them out of order; expect earliest due_time first.
+    ordered = Scheduler().sort_by_time([late, early, mid])
+    assert ordered == [early, mid, late]
+    assert [t.due_time for t in ordered] == sorted(t.due_time for t in ordered)
+
+
+def test_completing_daily_task_creates_task_for_following_day():
+    """Recurrence Logic: marking a daily task complete spawns tomorrow's task."""
+    pet = Pet(name="Mochi", species="dog")
+    task = pet.add_task("Feed", 10, 3, DAY, recurrence="daily")
+
+    nxt = pet.complete_task(task)
+
+    # Original is done; a fresh, pending instance exists for the next day.
+    assert task.completed is True
+    assert nxt is not None and nxt in pet.list_tasks()
+    assert len(pet.list_tasks()) == 2
+    assert nxt.due_time == task.due_time + timedelta(days=1)
+    assert nxt.completed is False
+    assert nxt.recurrence == "daily"
+
+
+def test_detect_conflicts_flags_duplicate_times():
+    """Conflict Detection: the Scheduler flags tasks at the same time."""
+    owner = Owner(name="Jordan", contact_info="j@example.com")
+    pet = owner.create_pet("Mochi", "cat")
+    # Two tasks scheduled at the exact same due_time -> a duplicate/overlap.
+    pet.add_task("Walk", 30, 2, DAY)
+    pet.add_task("Feed", 15, 3, DAY)
+
+    conflicts = Scheduler().detect_conflicts(owner)
+    assert len(conflicts) == 1
+    assert "Walk" in conflicts[0] and "Feed" in conflicts[0]
