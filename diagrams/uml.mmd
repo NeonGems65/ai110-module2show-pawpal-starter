@@ -21,6 +21,7 @@ classDiagram
     }
 
     class Task {
+        +str id
         +str description
         +int duration
         +int priority
@@ -30,16 +31,31 @@ classDiagram
         +is_overdue(now) bool
     }
 
+    class TimeSlot {
+        +datetime start
+        +datetime end
+    }
+
+    class ScheduledTask {
+        +Task task
+        +datetime start
+        +datetime end
+    }
+
     class Scheduler {
         +generate_plan(owner) list~ScheduledTask~
         +sort_by_priority(tasks) list~Task~
         +filter_by_available_time(tasks, slots) list~Task~
-        +resolve_conflicts(tasks) list~ScheduledTask~
+        +resolve_conflicts(tasks, slots) list~ScheduledTask~
         +explain_plan(plan) str
     }
 
     Owner "1" o-- "*" Pet : owns
     Pet "1" o-- "*" Task : has
+    Owner "1" o-- "*" TimeSlot : has availability
+    ScheduledTask "*" --> "1" Task : wraps
     Scheduler ..> Owner : reads
     Scheduler ..> Pet : reads tasks from
     Scheduler ..> Task : schedules
+    Scheduler ..> TimeSlot : fits tasks into
+    Scheduler ..> ScheduledTask : produces

@@ -35,7 +35,9 @@ Scheduler - responsible for scheduling tasks
 **b. Design changes**
 
 - Did your design change during implementation?
+    Yes
 - If yes, describe at least one change and why you made it.
+    In the UML, added two new wrapper classes to keep the data more organized instead of stored in a tuple
 
 ---
 

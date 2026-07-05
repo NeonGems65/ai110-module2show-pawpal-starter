@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from uuid import uuid4
 
 
 @dataclass
@@ -17,6 +18,9 @@ class Task:
     priority: int
     due_time: datetime
     completed: bool = False
+    # Stable identity so a Task can be matched back to its ScheduledTask
+    # even after round-tripping through the UI or serialization.
+    id: str = field(default_factory=lambda: uuid4().hex)
 
     def mark_complete(self) -> None:
         ...
@@ -86,7 +90,11 @@ class Scheduler:
     ) -> list[Task]:
         ...
 
-    def resolve_conflicts(self, tasks: list[Task]) -> list[ScheduledTask]:
+    def resolve_conflicts(
+        self, tasks: list[Task], slots: list[TimeSlot]
+    ) -> list[ScheduledTask]:
+        # Needs the available slots to assign each task a concrete
+        # start/end; the slot windows must survive the filter step above.
         ...
 
     def explain_plan(self, plan: list[ScheduledTask]) -> str:
