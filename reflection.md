@@ -1,8 +1,33 @@
 # PawPal+ Project Reflection
 
+
 ## 1. System Design
 
+Three Core Actions
+- Add a pet
+- Schedule Walks
+- See Today's Tasks
+
 **a. Initial design**
+Classes: 
+
+Owner - identifying info and a list of pets with appropriate methods
+    Methods - Create pet
+    Attributes - list of pets, The times that owner is available
+
+
+Pet - create task for pet
+    Methods - Add task, list tasks, manage tasks 
+    Attributes - description, due date, completion status
+
+
+Task - holds information about a task
+    Methods - mark_complete 
+    Attributes - Description, due time, completion status, one relavent method 
+
+
+Scheduler - responsible for scheduling tasks
+    retrieves, organizes, or manages tasks across multiple pets (not just one pet's tasks, and not merely holding data) 
 
 - Briefly describe your initial UML design.
 - What classes did you include, and what responsibilities did you assign to each?
