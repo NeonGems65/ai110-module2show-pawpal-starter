@@ -51,7 +51,7 @@ Scheduler - responsible for scheduling tasks
 **b. Tradeoffs**
 
 - Describe one tradeoff your scheduler makes.
-- Why is that tradeoff reasonable for this scenario?
+Scheduler.resolve_conflicts:On performance: the current shape is O(tasks × slots), which is appropriate for a greedy first-fit and fine at this scale. I would not try to beat it — the obvious "optimization" (heap/interval tree) only pays off at large slot counts and would hurt readability here.
 
 ---
 

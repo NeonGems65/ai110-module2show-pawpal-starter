@@ -29,6 +29,12 @@ def build_demo_owner() -> Owner:
     dog.add_task("Vet appointment", 45, 5, today + timedelta(hours=2))
     cat.add_task("Feed breakfast", 15, 4, today + timedelta(minutes=30))
 
+    # Two tasks deliberately scheduled at the SAME time (9:00 AM) so the
+    # conflict detector has something to flag: one for Rex, one for Miso.
+    clash = today + timedelta(hours=1)
+    dog.add_task("Grooming", 30, 2, clash)
+    cat.add_task("Playtime", 20, 2, clash)
+
     return owner
 
 
@@ -41,6 +47,16 @@ def print_schedule(owner: Owner) -> None:
     print(header)
     print("=" * len(header))
     print(scheduler.explain_plan(plan))
+
+    # Lightweight conflict check: warn about overlapping tasks without crashing.
+    conflicts = scheduler.detect_conflicts(owner)
+    print()
+    if conflicts:
+        print("Schedule warnings:")
+        for warning in conflicts:
+            print(f"  {warning}")
+    else:
+        print("No scheduling conflicts detected.")
 
 
 if __name__ == "__main__":

@@ -73,14 +73,62 @@ Sample test output:
 
 ## 📐 Smarter Scheduling
 
-> Fill in once you've implemented scheduling logic.
+PawPal+ goes beyond a flat task list with four scheduling behaviors. Each is
+implemented as a focused method so it can be tested in isolation and reused by
+the planning pipeline in [`Scheduler.generate_plan()`](pawpal_system.py#L178).
 
 | Feature | Method(s) | Notes |
 |---------|-----------|-------|
-| Task sorting | | e.g., by priority, duration |
-| Filtering | | e.g., skip tasks if time runs out |
-| Conflict handling | | e.g., overlapping time slots |
-| Recurring tasks | | e.g., daily vs. weekly |
+| Task sorting | [`Scheduler.sort_by_priority()`](pawpal_system.py#L205), [`Scheduler.sort_by_time()`](pawpal_system.py#L219) | Priority-first (ties broken by due time) drives the plan; due-time sort available for chronological views |
+| Filtering | [`Scheduler.filter_by_available_time()`](pawpal_system.py#L230), [`Owner.filter_tasks()`](pawpal_system.py#L141) | Drop tasks that fit no window; filter by pet name and/or completion status |
+| Conflict handling | [`Scheduler.detect_conflicts()`](pawpal_system.py#L291), [`Scheduler.resolve_conflicts()`](pawpal_system.py#L254) | Warn on overlapping due windows; greedily pack tasks into non-overlapping slots |
+| Recurring tasks | [`Task.is_recurring()`](pawpal_system.py#L41), [`Task.next_occurrence()`](pawpal_system.py#L45), [`Pet.complete_task()`](pawpal_system.py#L102) | Daily/weekly tasks spawn their next occurrence on completion |
+
+### Sorting behavior
+
+- **[`Scheduler.sort_by_priority(tasks)`](pawpal_system.py#L205)** — returns a
+  new list ordered by descending `priority`, breaking ties by the earliest
+  `due_time` (`key=lambda t: (-t.priority, t.due_time)`). This is the ordering
+  `generate_plan()` uses so the most important tasks claim slot time first. The
+  input list is left unmodified.
+- **[`Scheduler.sort_by_time(tasks)`](pawpal_system.py#L219)** — returns tasks
+  ordered by `due_time`, earliest first, for a chronological "what's next" view.
+
+### Filtering behavior
+
+- **[`Scheduler.filter_by_available_time(tasks, slots)`](pawpal_system.py#L230)**
+  — keeps only tasks that are not yet completed **and** whose `duration` fits
+  inside at least one availability window. Tasks that can never fit are dropped
+  before placement, and order is preserved.
+- **[`Owner.filter_tasks(completed=None, pet_name=None)`](pawpal_system.py#L141)**
+  — filters tasks across all pets by **completion status** and/or **pet name**
+  (case-insensitive). The two filters combine with AND; passing neither returns
+  every task the owner has.
+
+### Conflict detection logic
+
+- **[`Scheduler.detect_conflicts(owner)`](pawpal_system.py#L291)** — a
+  non-fatal check that treats each pending task as occupying the half-open
+  window `[due_time, due_time + duration)`. It compares every pair of pending
+  tasks (via `itertools.combinations`) and flags any overlap — two windows
+  overlap iff each starts before the other ends. Rather than raising, it returns
+  a human-readable warning per clash (naming whether the same pet or different
+  pets are involved); an empty list means no conflicts.
+- **[`Scheduler.resolve_conflicts(tasks, slots)`](pawpal_system.py#L254)** — the
+  placement half of the pipeline. It greedily drops each (priority-sorted) task
+  into the first slot with enough remaining room, advancing a per-slot cursor so
+  scheduled tasks never overlap. Tasks that fit nowhere are omitted.
+
+### Recurring task logic
+
+- **[`Task.is_recurring()`](pawpal_system.py#L41)** — `True` when `recurrence`
+  is `"daily"` or `"weekly"` (one-off tasks use `"none"`).
+- **[`Task.next_occurrence()`](pawpal_system.py#L45)** — returns a fresh,
+  pending `Task` (with its own `id`) due one cadence later (`timedelta(days=1)`
+  or `timedelta(weeks=1)`), or `None` for a non-recurring task.
+- **[`Pet.complete_task(task)`](pawpal_system.py#L102)** — marks the task done
+  and, if it recurs, appends its next occurrence to the pet automatically so the
+  routine keeps rolling forward.
 
 ## 📸 Demo Walkthrough
 

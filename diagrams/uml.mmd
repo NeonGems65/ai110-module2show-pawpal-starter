@@ -9,15 +9,17 @@ classDiagram
         +list~TimeSlot~ available_times
         +create_pet(name, species) Pet
         +list_pets() list~Pet~
+        +filter_tasks(completed, pet_name) list~Task~
     }
 
     class Pet {
         +str name
         +str species
         +list~Task~ tasks
-        +add_task(description, duration, priority, due) Task
+        +add_task(description, duration, priority, due, recurrence) Task
         +list_tasks() list~Task~
         +manage_task(task) None
+        +complete_task(task) Task
     }
 
     class Task {
@@ -27,7 +29,10 @@ classDiagram
         +int priority
         +datetime due_time
         +bool completed
+        +str recurrence
         +mark_complete() None
+        +is_recurring() bool
+        +next_occurrence() Task
         +is_overdue(now) bool
     }
 
