@@ -1,4 +1,10 @@
+from datetime import datetime, time
+
 import streamlit as st
+
+from pawpal_system import Owner, Scheduler, TimeSlot
+
+PRIORITY_MAP = {"low": 1, "medium": 2, "high": 3}
 
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 
@@ -70,19 +76,66 @@ else:
 
 st.divider()
 
+st.subheader("Availability")
+st.caption("The scheduler places tasks inside this window (today).")
+avail_col1, avail_col2 = st.columns(2)
+with avail_col1:
+    avail_start = st.time_input("Available from", value=time(8, 0))
+with avail_col2:
+    avail_end = st.time_input("Available until", value=time(18, 0))
+
+st.divider()
+
 st.subheader("Build Schedule")
-st.caption("This button should call your scheduling logic once you implement it.")
+st.caption("Builds a plan from your tasks, ordered by priority within your availability.")
 
 if st.button("Generate schedule"):
-    st.warning(
-        "Not implemented yet. Next step: create your scheduling logic (classes/functions) and call it here."
-    )
-    st.markdown(
-        """
-Suggested approach:
-1. Design your UML (draft).
-2. Create class stubs (no logic).
-3. Implement scheduling behavior.
-4. Connect your scheduler here and display results.
-"""
-    )
+    if avail_end <= avail_start:
+        st.error("'Available until' must be later than 'Available from'.")
+    elif not st.session_state.tasks:
+        st.info("Add at least one task before generating a schedule.")
+    else:
+        today = datetime.now().date()
+        slot = TimeSlot(
+            start=datetime.combine(today, avail_start),
+            end=datetime.combine(today, avail_end),
+        )
+
+        owner = Owner(name=owner_name, contact_info="")
+        owner.available_times = [slot]
+        pet = owner.create_pet(pet_name, species)
+        for entry in st.session_state.tasks:
+            pet.add_task(
+                description=entry["title"],
+                duration=entry["duration_minutes"],
+                priority=PRIORITY_MAP.get(entry["priority"], 2),
+                due=slot.end,
+            )
+
+        scheduler = Scheduler()
+        plan = scheduler.generate_plan(owner)
+        scheduled_ids = {item.task.id for item in plan}
+
+        if not plan:
+            st.warning("No tasks fit in the available time. Try widening your window.")
+        else:
+            st.success(f"Scheduled {len(plan)} task(s) for {pet.name}.")
+            st.table(
+                [
+                    {
+                        "Start": item.start.strftime("%H:%M"),
+                        "End": item.end.strftime("%H:%M"),
+                        "Task": item.task.description,
+                        "Duration (min)": item.task.duration,
+                        "Priority": item.task.priority,
+                    }
+                    for item in plan
+                ]
+            )
+            st.text(scheduler.explain_plan(plan))
+
+        unscheduled = [t for t in pet.list_tasks() if t.id not in scheduled_ids]
+        if unscheduled:
+            st.caption(
+                "Did not fit: " + ", ".join(t.description for t in unscheduled)
+            )
