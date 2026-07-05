@@ -22,6 +22,40 @@ Your final app should:
 - Display the plan clearly (and ideally explain the reasoning)
 - Include tests for the most important scheduling behaviors
 
+## ✨ Features
+
+PawPal+ implements the following algorithms and behaviors (all backed by tests
+in [`test_pawpal_system.py`](test_pawpal_system.py)):
+
+- **Priority-first scheduling** — [`Scheduler.generate_plan()`](pawpal_system.py#L178)
+  orders tasks by descending priority (ties broken by earliest due time), then
+  greedily packs them into your availability window so the most important care
+  happens first.
+- **Sorting by time** — [`Scheduler.sort_by_time()`](pawpal_system.py#L219)
+  reorders tasks chronologically by due time for a "what's next" view.
+- **Sorting by priority** — [`Scheduler.sort_by_priority()`](pawpal_system.py#L205)
+  ranks tasks high-to-low priority with an earliest-due-time tiebreak.
+- **Availability filtering** — [`Scheduler.filter_by_available_time()`](pawpal_system.py#L230)
+  drops any task that is already done or whose duration fits in no open window.
+- **Pet / status filtering** — [`Owner.filter_tasks()`](pawpal_system.py#L141)
+  filters tasks across all pets by pet name (case-insensitive) and/or completion
+  status, combined with AND.
+- **Conflict warnings** — [`Scheduler.detect_conflicts()`](pawpal_system.py#L291)
+  compares every pair of pending tasks and flags any whose
+  `[due, due + duration)` windows overlap, naming whether the clash is for the
+  same pet or across pets — non-fatal, so a plan is still produced.
+- **Greedy conflict resolution** — [`Scheduler.resolve_conflicts()`](pawpal_system.py#L254)
+  places each priority-sorted task into the first slot with room, advancing a
+  per-slot cursor so scheduled tasks never overlap.
+- **Daily / weekly recurrence** — completing a recurring task via
+  [`Pet.complete_task()`](pawpal_system.py#L102) automatically spawns its next
+  occurrence one day or one week later ([`Task.next_occurrence()`](pawpal_system.py#L45)),
+  so routines roll forward on their own.
+- **Overdue detection** — [`Task.is_overdue()`](pawpal_system.py) flags pending
+  tasks whose due time has already passed.
+- **Plan explanation** — [`Scheduler.explain_plan()`](pawpal_system.py)
+  renders the chosen plan as a readable, time-stamped daily agenda.
+
 ## Getting started
 
 ### Setup
@@ -167,12 +201,78 @@ the planning pipeline in [`Scheduler.generate_plan()`](pawpal_system.py#L178).
 
 ## 📸 Demo Walkthrough
 
-Describe your app in numbered steps so a reader can follow along without watching a video:
+Launch the Streamlit app from the project root:
 
-1. <!-- Describe this step -->
-2. <!-- Describe this step -->
-3. <!-- Describe this step -->
-4. <!-- Describe this step -->
-5. <!-- Add more steps as needed -->
+```bash
+streamlit run app.py
+```
 
-**Screenshot or video** *(optional)*: <!-- Insert a screenshot or link to a demo video here -->
+### Main UI features
+
+The app is a single scrolling page divided into sections, each wired to the
+domain logic:
+
+- **Owner** — edit the owner name and contact info.
+- **Pets** — add a pet (name + species: dog / cat / other) and see a table of
+  your pets with their task counts.
+- **Tasks** — pick a pet, then add a care task with a title, duration (minutes),
+  priority (low / medium / high), a due time for today, and a recurrence
+  (none / daily / weekly). Below the form you can **filter** the task list by
+  pet and status and **sort** it by priority or due time. Each row shows its
+  status badge (🕒 pending, ⏰ overdue, ✅ done).
+- **Availability** — set the daily window (from / until) the scheduler is
+  allowed to place tasks into.
+- **Build Schedule** — generate a priority-ordered, non-overlapping plan that
+  fits inside your availability window, plus a plain-text explanation and a list
+  of any tasks that did not fit.
+
+### Example workflow
+
+1. Under **Pets**, type `Rex`, choose `dog`, and click **Add pet**. Add a second
+   pet `Miso` (`cat`) the same way.
+2. Under **Tasks**, select `Rex` and add **Vet appointment** — 45 min, high
+   priority, due at 10:00. Add **Morning walk** — 30 min, medium, due 09:00.
+3. Select `Miso` and add **Feed breakfast** — 15 min, high, due 08:30.
+4. Add a second task due at 09:00 (e.g. **Grooming** for Rex) — because its
+   window overlaps the 09:00 walk, a ⚠️ conflict warning appears immediately.
+5. Under **Availability**, leave the window at 08:00–18:00.
+6. Click **Generate schedule**. The plan appears as a time-stamped table,
+   ordered by priority, with the explanation text below it and any unscheduled
+   tasks listed under "Did not fit."
+
+### Key Scheduler behaviors shown
+
+- **Sorting** — the plan and the "Sort by → Priority" view list high-priority
+  tasks first, breaking ties by the earlier due time; "Sort by → Due time" gives
+  a chronological view.
+- **Conflict warnings** — tasks whose `[due, due + duration)` windows overlap are
+  flagged (both for the same pet and across pets) without blocking the plan.
+- **Filtering** — the task list respects the pet and status filters, and the
+  scheduler drops tasks that are done or fit no window before placing the rest.
+- **Non-overlapping placement** — tasks are packed back-to-back into the
+  availability window so no two scheduled slots collide.
+- **Recurrence** — daily/weekly tasks are labeled in the "Repeats" column and
+  spawn their next occurrence when completed.
+
+### Sample CLI output
+
+Running the demo script (`python main.py`) exercises the same logic against a
+fixed two-pet scenario with a deliberate 09:00 clash:
+
+```
+Today's Schedule for Alex Rivera
+================================
+Daily plan:
+  08:00–08:45  Vet appointment (45 min) [priority 5]
+  08:45–09:00  Feed breakfast (15 min) [priority 4]
+  09:00–09:30  Morning walk (30 min) [priority 3]
+  09:30–10:00  Grooming (30 min) [priority 2]
+  10:00–10:20  Playtime (20 min) [priority 2]
+
+Schedule warnings:
+  Conflict: 'Morning walk' and 'Grooming' for the same pet (Rex) overlap around 09:00.
+  Conflict: 'Morning walk' and 'Playtime' for different pets (Rex & Miso) overlap around 09:00.
+  Conflict: 'Grooming' and 'Playtime' for different pets (Rex & Miso) overlap around 09:00.
+```
+
+**Screenshots or video** *(optional)*: <!-- Insert a screenshot or link to a demo video here for human reviewers -->

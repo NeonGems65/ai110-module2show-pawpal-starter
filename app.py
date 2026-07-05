@@ -67,6 +67,8 @@ st.divider()
 # --- Tasks ------------------------------------------------------------------
 st.subheader("Tasks")
 
+PRIORITY_LABEL = {1: "low", 2: "medium", 3: "high"}
+
 if pets:
     pet_names = [p.name for p in pets]
     selected_name = st.selectbox("Add a task for", pet_names)
@@ -82,38 +84,91 @@ if pets:
     with task_col3:
         priority = st.selectbox("Priority", ["low", "medium", "high"], index=2)
 
+    due_col1, due_col2 = st.columns(2)
+    with due_col1:
+        # A real due time (today) so conflict detection and overdue checks are
+        # meaningful — two tasks whose [due, due+duration) windows overlap will
+        # be flagged below by Scheduler.detect_conflicts.
+        due_time = st.time_input("Due at (today)", value=time(9, 0))
+    with due_col2:
+        recurrence = st.selectbox("Repeats", ["none", "daily", "weekly"])
+
     if st.button("Add task"):
         if not task_title.strip():
             st.warning("Give the task a title first.")
         else:
             # add_task builds the Task and appends it to the pet for us.
-            # Due time is filled in at schedule-time (see below) — here we just
-            # give it a placeholder of "now" so the object is valid.
+            due = datetime.combine(datetime.now().date(), due_time)
             selected_pet.add_task(
                 description=task_title.strip(),
                 duration=int(duration),
                 priority=PRIORITY_MAP.get(priority, 2),
-                due=datetime.now(),
+                due=due,
+                recurrence=recurrence,
             )
             st.success(f"Added '{task_title.strip()}' for {selected_pet.name}.")
 
-    # Show every pet's current tasks.
-    rows = [
-        {
-            "Pet": p.name,
-            "Task": t.description,
-            "Duration (min)": t.duration,
-            "Priority": t.priority,
-            "Done": t.completed,
-        }
-        for p in pets
-        for t in p.list_tasks()
-    ]
-    if rows:
-        st.write("Current tasks:")
-        st.table(rows)
+    # --- Conflict warnings --------------------------------------------------
+    # Ask the Scheduler whether any pending tasks overlap in time. We show one
+    # warning per clash, naming the tasks/pets and the time so the owner knows
+    # exactly what to move — non-fatal, the plan still generates below.
+    scheduler = Scheduler()
+    conflicts = scheduler.detect_conflicts(owner)
+    if conflicts:
+        st.warning(f"⚠️ {len(conflicts)} scheduling conflict(s) detected:")
+        for message in conflicts:
+            st.warning(message)
+
+    # --- Filter + sort the task list ----------------------------------------
+    st.write("Current tasks:")
+    filter_col1, filter_col2, filter_col3 = st.columns(3)
+    with filter_col1:
+        pet_filter = st.selectbox("Filter by pet", ["All pets"] + pet_names)
+    with filter_col2:
+        status_filter = st.selectbox("Status", ["All", "Pending", "Done"])
+    with filter_col3:
+        sort_by = st.selectbox("Sort by", ["Priority", "Due time"])
+
+    # Owner.filter_tasks does the pet/completion filtering for us.
+    completed = {"All": None, "Pending": False, "Done": True}[status_filter]
+    tasks = owner.filter_tasks(
+        completed=completed,
+        pet_name=None if pet_filter == "All pets" else pet_filter,
+    )
+
+    # Let the Scheduler's sort methods order the filtered results.
+    if sort_by == "Priority":
+        tasks = scheduler.sort_by_priority(tasks)
     else:
-        st.info("No tasks yet. Add one above.")
+        tasks = scheduler.sort_by_time(tasks)
+
+    # Map each task back to its pet so the table can name the owner of the task.
+    pet_of = {id(t): p.name for p in pets for t in p.tasks}
+    now = datetime.now()
+
+    if tasks:
+        st.table(
+            [
+                {
+                    "Pet": pet_of.get(id(t), "?"),
+                    "Task": t.description,
+                    "Due": t.due_time.strftime("%H:%M"),
+                    "Duration (min)": t.duration,
+                    "Priority": PRIORITY_LABEL.get(t.priority, t.priority),
+                    "Repeats": t.recurrence,
+                    "Status": (
+                        "✅ done"
+                        if t.completed
+                        else "⏰ overdue"
+                        if t.is_overdue(now)
+                        else "🕒 pending"
+                    ),
+                }
+                for t in tasks
+            ]
+        )
+    else:
+        st.info("No tasks match the current filter.")
 else:
     st.info("Add a pet before creating tasks.")
 
@@ -146,13 +201,16 @@ if st.button("Generate schedule"):
             start=datetime.combine(today, avail_start),
             end=datetime.combine(today, avail_end),
         )
-        # Update the persisted owner's availability, and align each task's due
-        # time to the end of the window so overdue checks stay meaningful.
+        # Persist the availability window so the scheduler can pack into it.
+        # Task due times are left as the owner set them, so conflict and
+        # overdue checks keep reflecting the real intended times.
         owner.available_times = [slot]
-        for task in all_tasks:
-            task.due_time = slot.end
 
         scheduler = Scheduler()
+        # Surface any time conflicts alongside the plan so the owner can act.
+        for message in scheduler.detect_conflicts(owner):
+            st.warning(message)
+
         plan = scheduler.generate_plan(owner)
         scheduled_ids = {item.task.id for item in plan}
 
@@ -167,7 +225,9 @@ if st.button("Generate schedule"):
                         "End": item.end.strftime("%H:%M"),
                         "Task": item.task.description,
                         "Duration (min)": item.task.duration,
-                        "Priority": item.task.priority,
+                        "Priority": PRIORITY_LABEL.get(
+                            item.task.priority, item.task.priority
+                        ),
                     }
                     for item in plan
                 ]
